@@ -1,0 +1,185 @@
+# ============================================================
+# Jenkins Helm Values
+#
+# 环境：
+#   Docker Desktop Kubernetes
+#   namespace: cicd
+#   StorageClass: hostpath
+#
+# Jenkins：
+#   http://localhost:30080/jenkins/
+#
+# Agent：
+#   使用 Jenkins Kubernetes Plugin 动态创建临时 Agent Pod
+# ============================================================
+
+
+# ============================================================
+# Jenkins Controller
+# ============================================================
+
+controller:
+
+  # Jenkins Controller 镜像
+  image:
+    repository: jenkins/jenkins
+    tagLabel: jdk21
+    pullPolicy: IfNotPresent
+
+  # Controller 副本数
+  replicas: 1
+
+  # Jenkins 管理员账号
+  admin:
+    username: admin
+    password: admin123456
+
+  # Jenkins 对外访问地址
+  jenkinsUrl: "http://localhost:18080/"
+
+
+
+  # Controller 不执行 Pipeline
+  # Pipeline 交给 Kubernetes Agent 执行
+  numExecutors: 0
+
+  # Jenkins Service
+  serviceType: ClusterIP
+
+  # Controller 资源
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+  # ==========================================================
+  # Jenkins 持久化
+  # ==========================================================
+
+  persistence:
+    enabled: true
+    storageClass: hostpath
+    accessMode: ReadWriteOnce
+    size: 10Gi
+
+  # ==========================================================
+  # Jenkins Plugins
+  #
+  # kubernetes、git、workflow-aggregator、
+  # configuration-as-code 已经由当前 Jenkins Chart
+  # 默认插件列表提供。
+  #
+  # 这里只添加额外插件。
+  # ==========================================================
+
+  additionalPlugins:
+    - credentials-binding
+    - github
+    - pipeline-stage-view
+
+  # Kubernetes Cloud 名称
+  cloudName: kubernetes
+
+  # ==========================================================
+  # Jenkins Configuration as Code
+  # ==========================================================
+
+  JCasC:
+
+    enabled: true
+
+    defaultConfig: true
+
+    configScripts:
+
+      # 注意：
+      # configScripts 的每一个 value 必须是字符串。
+      # 因此这里必须使用 |。
+      jenkins-system: |
+        jenkins:
+          systemMessage: |
+            SRE Platform Jenkins
+            Kubernetes Dynamic Agent
+            Managed by Helm and Jenkins Configuration as Code.
+
+
+# ============================================================
+# Jenkins Kubernetes Dynamic Agent
+#
+# Jenkins Pipeline 执行时：
+#
+# Jenkins Controller
+#        |
+#        v
+# Kubernetes Plugin
+#        |
+#        v
+# 临时 Jenkins Agent Pod
+#
+# Pipeline 执行完成后 Agent Pod 删除。
+# ============================================================
+
+agent:
+
+  # 开启 Kubernetes Dynamic Agent
+  enabled: true
+
+  # Agent Pod 所在 namespace
+  namespace: cicd
+
+  # Agent 连接 Jenkins Controller
+  jenkinsUrl: http://jenkins.cicd.svc.cluster.local:8080
+
+  # ==========================================================
+  # Agent 镜像
+  # ==========================================================
+
+  image:
+    registry: ""
+    repository: jenkins/inbound-agent
+    tag: "3385.vf1123fb_515da_-1"
+
+  # Agent 工作目录
+  workingDir: /home/jenkins/agent
+
+  # Pipeline 完成后删除 Agent Pod
+  podRetention: Never
+
+  # 最大并发 Agent 数量
+  containerCap: 3
+
+  # Agent 资源
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  # 自定义 Jenkins Label
+  customJenkinsLabels:
+    - k8s-agent
+
+  # 使用 Jenkins ServiceAccount
+  useDefaultServiceAccount: true
+
+
+# ============================================================
+# RBAC
+# ============================================================
+
+rbac:
+  create: true
+
+
+# ============================================================
+# Jenkins ServiceAccount
+# ============================================================
+
+serviceAccount:
+  create: true
+  name: jenkins

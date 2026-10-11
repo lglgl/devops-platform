@@ -1,0 +1,50 @@
+# Tempo 单体模式配置，通过 ConfigMap 挂载到容器。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-config
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: tempo
+data:
+  tempo.yaml: |
+    # HTTP API 与健康检查。
+    server:
+      http_listen_port: 3200
+      log_level: info
+
+    # 接收 OpenTelemetry OTLP Trace。
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+
+    # 单副本实验环境使用内存 ring。
+    ingester:
+      max_block_duration: 5m
+      lifecycler:
+        ring:
+          kvstore:
+            store: inmemory
+          replication_factor: 1
+
+    # Trace 数据使用本地存储，保留期设置为 24 小时。
+    compactor:
+      compaction:
+        block_retention: 24h
+
+    storage:
+      trace:
+        backend: local
+        wal:
+          path: /var/tempo/wal
+        local:
+          path: /var/tempo/traces
+
+    querier:
+      frontend_worker:
+        frontend_address: 127.0.0.1:9095

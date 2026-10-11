@@ -1,0 +1,66 @@
+agent:
+  containerCap: 3
+  customJenkinsLabels:
+  - k8s-agent
+  enabled: true
+  image:
+    registry: ""
+    repository: jenkins/inbound-agent
+    tag: 3385.vf1123fb_515da_-1
+  jenkinsUrl: http://jenkins.cicd.svc.cluster.local:8080
+  namespace: cicd
+  podRetention: Never
+  resources:
+    limits:
+      cpu: "1"
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  useDefaultServiceAccount: true
+  workingDir: /home/jenkins/agent
+controller:
+  JCasC:
+    configScripts:
+      jenkins-system: |
+        jenkins:
+          systemMessage: |
+            SRE Platform Jenkins
+            Kubernetes Dynamic Agent
+            Managed by Helm and Jenkins Configuration as Code.
+    defaultConfig: true
+    enabled: true
+  additionalPlugins:
+  - credentials-binding
+  - github
+  - pipeline-stage-view
+  admin:
+    password: admin123456
+    username: admin
+  cloudName: kubernetes
+  image:
+    pullPolicy: IfNotPresent
+    repository: jenkins/jenkins
+    tagLabel: jdk21
+  jenkinsUriPrefix: /jenkins
+  jenkinsUrl: http://localhost:30080/jenkins/
+  numExecutors: 0
+  persistence:
+    accessMode: ReadWriteOnce
+    enabled: true
+    size: 10Gi
+    storageClass: hostpath
+  replicas: 1
+  resources:
+    limits:
+      cpu: "1"
+      memory: 2Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  serviceType: ClusterIP
+rbac:
+  create: true
+serviceAccount:
+  create: true
+  name: jenkins

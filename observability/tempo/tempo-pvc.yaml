@@ -1,0 +1,15 @@
+# 持久化 Tempo WAL 与 Trace blocks。
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tempo-data
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: tempo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: hostpath
+  resources:
+    requests:
+      storage: 10Gi

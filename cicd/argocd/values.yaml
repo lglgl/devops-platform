@@ -1,0 +1,92 @@
+# ============================================================
+# Argo CD Helm Values
+#
+# Argo CD:
+#   http://localhost:30080/argocd/
+#
+# 当前本地环境由 NGINX 提供统一 HTTP 入口。
+# ============================================================
+
+global:
+  image:
+    imagePullPolicy: IfNotPresent
+
+configs:
+  params:
+    # NGINX 到 Argo CD 使用 HTTP。
+    server.insecure: "true"
+
+    # Argo CD 使用 /argocd 子路径。
+    server.rootpath: /argocd
+    server.basehref: /argocd/
+
+server:
+  replicas: 1
+
+  # 与 configs.params 保持一致。
+  extraArgs:
+    - --insecure
+    - --rootpath
+    - /argocd
+    - --basehref
+    - /argocd/
+
+  service:
+    type: ClusterIP
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+repoServer:
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+applicationSet:
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+controller:
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+redis:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+# 本地环境暂时不启用 Dex。
+dex:
+  enabled: false
+
+notifications:
+  enabled: false

@@ -1,0 +1,249 @@
+# ============================================================
+# Loki Helm Values
+# Environment:
+#   MacBook M4
+#   Docker Desktop Kubernetes
+#   StorageClass: hostpath
+#
+# Architecture:
+#   Loki Monolithic
+#   1 replica
+#   filesystem storage
+#   10Gi PVC
+#
+# This configuration is intended for the local SRE lab.
+# ============================================================
+
+
+# ============================================================
+# 1. Deployment Mode
+# ============================================================
+# 使用 Monolithic 模式。
+#
+# 对于当前单节点 Docker Desktop Kubernetes：
+#
+#   Loki
+#     └── Single Binary
+#          └── 1 Pod
+#
+# 不需要 Distributed 模式。
+deploymentMode: Monolithic
+
+
+# ============================================================
+# 2. Loki Core Configuration
+# ============================================================
+loki:
+
+  # ----------------------------------------------------------
+  # 认证
+  # ----------------------------------------------------------
+  # 本地 SRE Lab 不启用 Loki 多租户认证。
+  auth_enabled: false
+
+
+  # ----------------------------------------------------------
+  # Common Configuration
+  # ----------------------------------------------------------
+  # 单实例 Loki 必须使用 replication_factor: 1。
+  commonConfig:
+    replication_factor: 1
+
+
+  # ----------------------------------------------------------
+  # Schema
+  # ----------------------------------------------------------
+  # 使用 TSDB。
+  #
+  # TSDB 是当前 Loki 推荐的索引存储方式。
+  schemaConfig:
+    configs:
+
+      - from: "2024-04-01"
+
+        store: tsdb
+
+        object_store: filesystem
+
+        schema: v13
+
+        index:
+          prefix: loki_index_
+          period: 24h
+
+
+  # ----------------------------------------------------------
+  # Storage
+  # ----------------------------------------------------------
+  # 使用 Loki Pod 自己的 filesystem。
+  #
+  # 实际数据会写入：
+  #
+  #   /var/loki
+  #
+  # 该目录由下面的 PVC 持久化。
+  storage:
+    type: filesystem
+
+
+  # ----------------------------------------------------------
+  # Limits
+  # ----------------------------------------------------------
+  limits_config:
+
+    # 支持 structured metadata。
+    allow_structured_metadata: true
+
+    # 支持 volume 查询。
+    volume_enabled: true
+
+
+  # ----------------------------------------------------------
+  # Pattern Ingester
+  # ----------------------------------------------------------
+  # 用于后续日志模式分析。
+  pattern_ingester:
+    enabled: true
+
+
+# ============================================================
+# 3. Single Binary
+# ============================================================
+singleBinary:
+
+  # Docker Desktop 单节点环境只运行一个 Loki。
+  replicas: 1
+
+
+  # ----------------------------------------------------------
+  # Persistent Storage
+  # ----------------------------------------------------------
+  persistence:
+
+    # 开启 PVC。
+    enabled: true
+
+    # --------------------------------------------------------
+    # IMPORTANT:
+    #
+    # Your Docker Desktop Kubernetes cluster uses:
+    #
+    #   StorageClass: hostpath
+    #
+    # NOT:
+    #
+    #   standard
+    #
+    # Your Jenkins / Harbor / MinIO PVCs are already using
+    # this same StorageClass successfully.
+    # --------------------------------------------------------
+    storageClass: hostpath
+
+    # Loki filesystem 使用 RWO 即可。
+    accessModes:
+      - ReadWriteOnce
+
+    # Loki 日志数据暂时分配 10Gi。
+    size: 10Gi
+
+
+# ============================================================
+# 4. Disable Distributed Components
+# ============================================================
+# 因为使用 Monolithic 模式，所以其它 Loki 分布式组件
+# 全部关闭。
+
+
+backend:
+  replicas: 0
+
+
+read:
+  replicas: 0
+
+
+write:
+  replicas: 0
+
+
+ingester:
+  replicas: 0
+
+
+querier:
+  replicas: 0
+
+
+queryFrontend:
+  replicas: 0
+
+
+queryScheduler:
+  replicas: 0
+
+
+distributor:
+  replicas: 0
+
+
+compactor:
+  replicas: 0
+
+
+indexGateway:
+  replicas: 0
+
+
+bloomPlanner:
+  replicas: 0
+
+
+bloomBuilder:
+  replicas: 0
+
+
+bloomGateway:
+  replicas: 0
+
+
+# ============================================================
+# 5. Gateway
+# ============================================================
+# 本地环境不需要额外的 Loki Gateway。
+gateway:
+  enabled: false
+
+
+# ============================================================
+# 6. MinIO
+# ============================================================
+# 当前 Loki 直接使用 filesystem。
+#
+# 后面如果你的 SRE Lab 已经把 MinIO 完整搭起来，
+# 可以再把 Loki 存储切换到 MinIO S3。
+minio:
+  enabled: false
+
+
+# ============================================================
+# 7. Cache
+# ============================================================
+# 本地单节点环境暂时关闭 Cache。
+# 减少 Pod 数量和资源消耗。
+
+chunksCache:
+  enabled: false
+
+
+resultsCache:
+  enabled: false
+
+
+# ============================================================
+# 8. Loki Canary
+# ============================================================
+# Helm Chart 的 Helm Test 要求 Loki Canary 开启。
+#
+# 因此这里必须保持 true。
+lokiCanary:
+  enabled: true

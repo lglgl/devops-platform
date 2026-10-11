@@ -1,0 +1,12 @@
+# ============================================================
+# Observability Namespace
+# 用于统一承载 Prometheus、Grafana、Alertmanager 等可观测组件
+# ============================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    app.kubernetes.io/name: observability
+    environment: local

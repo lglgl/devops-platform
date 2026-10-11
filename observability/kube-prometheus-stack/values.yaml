@@ -1,0 +1,337 @@
+# ============================================================
+# kube-prometheus-stack Helm 配置
+# 当前环境：MacBook M4 + Docker Desktop Kubernetes
+#
+# 本阶段部署：
+#   - Prometheus
+#   - Grafana
+#   - Alertmanager
+#   - kube-state-metrics
+#   - node-exporter
+#   - Prometheus Operator
+# ============================================================
+
+# ============================================================
+# Prometheus
+#
+# 浏览器：
+#
+#   http://localhost:30080/prometheus/
+#
+# NGINX：
+#
+#   /prometheus/
+#       ↓
+#   Prometheus Service:9090
+#
+# Prometheus 自己必须知道外部访问路径。
+# ============================================================
+
+prometheus:
+  enabled: true
+
+  prometheusSpec:
+
+    # ----------------------------------------------------------
+    # Prometheus 对外 URL
+    # ----------------------------------------------------------
+
+    externalUrl: "http://localhost:30080/prometheus/"
+
+    # ----------------------------------------------------------
+    # Prometheus 内部路由前缀
+    # ----------------------------------------------------------
+
+    routePrefix: /prometheus
+
+    # ----------------------------------------------------------
+    # ServiceMonitor 跨 Namespace 自动发现
+    # ----------------------------------------------------------
+
+    serviceMonitorSelectorNilUsesHelmValues: false
+
+    # ----------------------------------------------------------
+    # PodMonitor 跨 Namespace 自动发现
+    # ----------------------------------------------------------
+
+    podMonitorSelectorNilUsesHelmValues: false
+
+    # ----------------------------------------------------------
+    # 资源
+    # ----------------------------------------------------------
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+# ============================================================
+# 2. Prometheus Service
+# ============================================================
+#
+# Prometheus 本身暂时不暴露 NodePort。
+# Grafana 在 Kubernetes 集群内部通过 Service 访问 Prometheus。
+# 如需浏览器访问，使用 kubectl port-forward。
+# ============================================================
+
+prometheusService:
+  enabled: true
+
+# ============================================================
+# Grafana
+#
+# Grafana 通过 NGINX Ingress 的 /grafana/ 路径访问。
+#
+# 浏览器：
+#   http://localhost:30080/grafana/
+#
+# NGINX：
+#   /grafana/
+#       ↓
+#   Grafana Service:80
+#
+# Grafana 自己也必须知道自己运行在 /grafana/。
+# ============================================================
+
+grafana:
+
+  # ==========================================================
+  # Grafana Web
+  #
+  # 用户通过：
+  #
+  # http://localhost:30080/grafana/
+  #
+  # 访问 Grafana
+  # ==========================================================
+
+  grafana.ini:
+
+    server:
+
+      root_url: "%(protocol)s://%(domain)s/grafana/"
+
+      serve_from_sub_path: true
+
+
+  # ==========================================================
+  # Prometheus Data Source
+  #
+  # Grafana Pod 与 Prometheus Pod 位于同一个 Kubernetes 集群，
+  # 因此直接通过 Kubernetes Service DNS 访问。
+  #
+  # 不经过 NGINX
+  # 不使用 /prometheus 子路径
+  # ==========================================================
+
+  additionalDataSources:
+
+    - name: Prometheus
+      type: prometheus
+
+      access: proxy
+
+      url: http://kube-prometheus-stack-prometheus.observability:9090
+
+      isDefault: true
+
+      editable: false
+
+# ============================================================
+# Alertmanager
+#
+# 浏览器：
+#
+#   http://localhost:30080/alertmanager/
+#
+# NGINX：
+#
+#   /alertmanager/
+#       ↓
+#   Alertmanager Service:9093
+#
+# Alertmanager 自己必须知道外部 URL。
+# ============================================================
+
+alertmanager:
+  enabled: true
+
+  alertmanagerSpec:
+
+    # ----------------------------------------------------------
+    # Alertmanager 对外访问地址
+    # ----------------------------------------------------------
+
+    externalUrl: "http://localhost:30080/alertmanager/"
+
+    # ----------------------------------------------------------
+    # Alertmanager 内部路由前缀
+    # ----------------------------------------------------------
+
+    routePrefix: /alertmanager
+
+    # ----------------------------------------------------------
+    # 资源
+    # ----------------------------------------------------------
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  # ----------------------------------------------------------
+  # Alertmanager Service
+  #
+  # 由 NGINX 直接访问 ClusterIP。
+  # ----------------------------------------------------------
+
+  service:
+    type: ClusterIP
+
+  # ----------------------------------------------------------
+  # 不启用 Chart 自己的 Ingress。
+  # ----------------------------------------------------------
+
+  ingress:
+    enabled: false
+
+
+
+# ============================================================
+# 5. Node Exporter
+# ============================================================
+#
+# Node Exporter 使用 DaemonSet。
+# 每个 Kubernetes Node 运行一个实例。
+#
+# 主要采集：
+#   CPU
+#   Memory
+#   Disk
+#   Filesystem
+#   Network
+# ============================================================
+
+nodeExporter:
+  enabled: true
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+
+# ============================================================
+# 6. kube-state-metrics
+# ============================================================
+#
+# 读取 Kubernetes API 中的对象状态。
+#
+# 例如：
+#   Pod
+#   Deployment
+#   StatefulSet
+#   DaemonSet
+#   Node
+#   Service
+#   PVC
+# ============================================================
+
+kubeStateMetrics:
+  enabled: true
+
+
+# ============================================================
+# 7. Prometheus Operator
+# ============================================================
+#
+# Operator 负责管理：
+#   Prometheus
+#   Alertmanager
+#   ServiceMonitor
+#   PodMonitor
+#   PrometheusRule
+# ============================================================
+
+prometheusOperator:
+  enabled: true
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+
+# ============================================================
+# 8. 默认告警规则
+# ============================================================
+#
+# kube-prometheus-stack 自带 Kubernetes 常用告警规则。
+# ============================================================
+
+defaultRules:
+  create: true
+
+  rules:
+    alertmanager: true
+    etcd: true
+    general: true
+    k8s: true
+    kubeApiserverAvailability: true
+    kubeApiserverBurnrate: true
+    kubeApiserverHistogram: true
+    kubeApiserverSlos: true
+    kubeControllerManager: true
+    kubelet: true
+    kubeProxy: true
+    kubePrometheusGeneral: true
+    kubePrometheusNodeRecording: true
+    kubernetesApps: true
+    kubernetesResources: true
+    kubernetesStorage: true
+    kubernetesSystem: true
+    kubeSchedulerAlerting: true
+    kubeSchedulerRecording: true
+    node: true
+    nodeExporterAlerting: true
+    nodeExporterRecording: true
+    prometheus: true
+    prometheusOperator: true
+
+
+# ============================================================
+# 9. Kubernetes 控制面监控
+# ============================================================
+#
+# Docker Desktop Kubernetes 某些控制面组件并不会像标准裸机
+# Kubernetes 一样完整暴露 metrics，因此暂时关闭可能产生
+# 无效 Target 的组件。
+# ============================================================
+
+kubeApiServer:
+  enabled: true
+
+kubeControllerManager:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+coreDns:
+  enabled: true

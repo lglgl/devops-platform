@@ -1,0 +1,112 @@
+# ============================================================
+# Observability Ingress
+#
+# 所有 Observability Web UI 都通过 NGINX 统一访问。
+#
+# 访问入口：
+#
+#   http://localhost:30080/
+#   http://localhost:30080/grafana/
+#   http://localhost:30080/prometheus/
+#   http://localhost:30080/alertmanager/
+#
+# 不需要修改 /etc/hosts。
+# ============================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+
+metadata:
+  name: observability
+  namespace: observability
+
+  annotations:
+
+    # --------------------------------------------------------
+    # 当前本地环境只使用 HTTP。
+    # --------------------------------------------------------
+
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+
+spec:
+
+  # ----------------------------------------------------------
+  # 使用我们之前安装的 ingress-nginx Controller。
+  # ----------------------------------------------------------
+
+  ingressClassName: nginx
+
+  rules:
+
+    # --------------------------------------------------------
+    # 不指定 host。
+    #
+    # 因此 localhost:30080 可以直接匹配。
+    # --------------------------------------------------------
+
+    - http:
+
+        paths:
+
+          # ==================================================
+          # 1. 平台首页
+          #
+          # http://localhost:30080/
+          # ==================================================
+
+          - path: /
+            pathType: Prefix
+
+            backend:
+              service:
+                name: platform-dashboard
+                port:
+                  number: 80
+
+
+          # ==================================================
+          # 2. Grafana
+          #
+          # http://localhost:30080/grafana/
+          # ==================================================
+
+          - path: /grafana
+            pathType: Prefix
+
+            backend:
+              service:
+                name: kube-prometheus-stack-grafana
+                port:
+                  number: 80
+
+
+          # ==================================================
+          # 3. Prometheus
+          #
+          # http://localhost:30080/prometheus/
+          # ==================================================
+
+          - path: /prometheus
+            pathType: Prefix
+
+            backend:
+              service:
+                name: kube-prometheus-stack-prometheus
+                port:
+                  number: 9090
+
+
+          # ==================================================
+          # 4. Alertmanager
+          #
+          # http://localhost:30080/alertmanager/
+          # ==================================================
+
+          - path: /alertmanager
+            pathType: Prefix
+
+            backend:
+              service:
+                name: kube-prometheus-stack-alertmanager
+                port:
+                  number: 9093

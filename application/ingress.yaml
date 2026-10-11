@@ -1,0 +1,21 @@
+# Application 通过 NGINX 统一入口暴露。
+# 注意：Ingress 与 backend Service 必须在同一 namespace (app-sample)。
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-sample
+  namespace: app-sample
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /application
+            pathType: Prefix
+            backend:
+              service:
+                name: app-sample
+                port:
+                  number: 80

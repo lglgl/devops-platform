@@ -1,0 +1,105 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cicd-ingress
+  namespace: cicd
+
+  annotations:
+
+    # ========================================================
+    # HTTP 本地环境，不强制 HTTPS
+    # ========================================================
+
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+
+    # ========================================================
+    # Jenkins 文件上传
+    # ========================================================
+
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+
+    # ========================================================
+    # Jenkins 长时间 Pipeline / CLI
+    # ========================================================
+
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "90"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+
+    # ========================================================
+    # Jenkins HTTP CLI
+    # ========================================================
+
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+
+    # ========================================================
+    # HTTP/1.1
+    # ========================================================
+
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+
+    # ========================================================
+    # 关键：
+    #
+    # 明确告诉 Jenkins：
+    #
+    # 外部访问：
+    #
+    #   http://localhost:30080
+    #
+    # 而不是：
+    #
+    #   http://localhost
+    #
+    # 这正是当前 Reverse Proxy Monitor 报错的原因。
+    # ========================================================
+
+    nginx.ingress.kubernetes.io/proxy-set-headers: "cicd/jenkins-proxy-headers"
+
+
+spec:
+
+  ingressClassName: nginx
+
+  rules:
+
+    # ========================================================
+    # 不设置 host
+    #
+    # 当前通过：
+    #
+    #   http://localhost:30080
+    #
+    # 访问。
+    # ========================================================
+
+    - http:
+
+        paths:
+
+          # ====================================================
+          # Jenkins
+          # ====================================================
+
+          - path: /jenkins
+            pathType: Prefix
+
+            backend:
+              service:
+                name: jenkins
+                port:
+                  number: 8080
+
+          # ====================================================
+          # Argo CD
+          # ====================================================
+
+          - path: /argocd
+            pathType: Prefix
+
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80

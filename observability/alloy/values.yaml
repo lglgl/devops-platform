@@ -1,0 +1,188 @@
+# ============================================================
+# Grafana Alloy Kubernetes 日志采集配置
+#
+# 环境：
+#   MacBook M4
+#   Docker Desktop Kubernetes
+#   单节点 Kubernetes
+#   Namespace: observability
+#   Loki: Monolithic
+#
+# 目标：
+#   Kubernetes Pod 日志
+#          ↓
+#        Alloy
+#          ↓
+#        Loki
+#
+# 当前版本优先保证稳定性。
+# 暂时不做复杂 JSON 解析、正则解析和日志重写。
+# ============================================================
+
+
+# ============================================================
+# 1. Alloy Controller
+# ============================================================
+#
+# 使用 Deployment。
+#
+# 当前 Docker Desktop 只有一个 Kubernetes Node，
+# 并且 Alloy 使用 Kubernetes API 获取 Pod 日志，
+# 因此暂时只运行一个副本。
+#
+controller:
+  type: deployment
+  replicas: 1
+
+
+# ============================================================
+# 2. ServiceAccount
+# ============================================================
+#
+# 必须由 Helm 创建。
+#
+# 不要再手动执行 rbac.yaml。
+#
+serviceAccount:
+  create: true
+  name: alloy-logs
+
+
+# ============================================================
+# 3. Alloy
+# ============================================================
+
+alloy:
+
+  # ----------------------------------------------------------
+  # 关闭 Alloy Clustering
+  # ----------------------------------------------------------
+  #
+  # 当前只有一个 Alloy Pod。
+  #
+  clustering:
+    enabled: false
+
+
+  # ----------------------------------------------------------
+  # Alloy 配置
+  # ----------------------------------------------------------
+
+  configMap:
+
+    # 由 Helm 创建 ConfigMap。
+    create: true
+
+    # ========================================================
+    # Alloy River 配置
+    #
+    # 注意：
+    # Alloy 使用 // 作为注释。
+    #
+    # 不要使用 #。
+    # ========================================================
+
+    content: |
+
+      // ======================================================
+      // Alloy 日志配置
+      // ======================================================
+
+      logging {
+        level  = "info"
+        format = "logfmt"
+      }
+
+
+      // ======================================================
+      // Kubernetes Pod Discovery
+      // ======================================================
+      //
+      // 使用 Kubernetes API 自动发现 Pod。
+      //
+      // Alloy 会持续监听 Pod 的创建、删除和变化。
+      //
+
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+
+      // ======================================================
+      // Kubernetes Pod Logs
+      // ======================================================
+      //
+      // 通过 Kubernetes API 获取 Pod 的 stdout/stderr。
+      //
+      // 当前不挂载：
+      //
+      //   /var/log
+      //   /var/log/pods
+      //   /var/lib/docker
+      //
+      // 这样更加适合当前 Docker Desktop Kubernetes。
+      //
+
+      loki.source.kubernetes "pods" {
+
+        targets = discovery.kubernetes.pods.targets
+
+        forward_to = [
+          loki.process.pods.receiver,
+        ]
+      }
+
+
+      // ======================================================
+      // Log Processing
+      // ======================================================
+      //
+      // 当前只添加最基本的 cluster 标签。
+      //
+      // 暂时不做：
+      //
+      //   JSON parsing
+      //   Regex parsing
+      //   Log transformation
+      //   Structured metadata
+      //
+      // 先保证日志链路稳定。
+      //
+
+      loki.process "pods" {
+
+        forward_to = [
+          loki.write.loki.receiver,
+        ]
+
+        stage.static_labels {
+
+          values = {
+            cluster = "docker-desktop",
+          }
+        }
+      }
+
+
+      // ======================================================
+      // Loki Output
+      // ======================================================
+      //
+      // Alloy 使用 Kubernetes Service 访问 Loki。
+      //
+      // Loki Service：
+      //
+      //   loki.observability.svc.cluster.local
+      //
+      // Loki HTTP Push API：
+      //
+      //   /loki/api/v1/push
+      //
+
+      loki.write "loki" {
+
+        endpoint {
+
+          url = "http://loki.observability.svc.cluster.local:3100/loki/api/v1/push"
+        }
+      }

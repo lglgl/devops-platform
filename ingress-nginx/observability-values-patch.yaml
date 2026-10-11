@@ -1,0 +1,60 @@
+# ============================================================
+# kube-prometheus-stack 的补充配置
+#
+# 这个文件用于配合 NGINX Ingress 的 Path 路由：
+#
+#   /grafana
+#   /prometheus
+#   /alertmanager
+#
+# 如果你的 kube-prometheus-stack 已经安装，
+# 修改对应 values.yaml 后执行 Helm upgrade 即可。
+# ============================================================
+
+
+# ============================================================
+# Grafana
+#
+# 必须告诉 Grafana：
+# 自己位于 /grafana 子路径。
+# ============================================================
+
+grafana:
+
+  grafana.ini:
+
+    server:
+      root_url: "%(protocol)s://%(domain)s/grafana/"
+      serve_from_sub_path: true
+
+
+# ============================================================
+# Prometheus
+#
+# 必须告诉 Prometheus：
+# 自己位于 /prometheus 子路径。
+# ============================================================
+
+prometheus:
+
+  prometheusSpec:
+
+    externalUrl: "http://localhost:30080/prometheus/"
+
+    routePrefix: "/prometheus"
+
+
+# ============================================================
+# Alertmanager
+#
+# 必须告诉 Alertmanager：
+# 自己位于 /alertmanager 子路径。
+# ============================================================
+
+alertmanager:
+
+  alertmanagerSpec:
+
+    externalUrl: "http://localhost:30080/alertmanager/"
+
+    routePrefix: "/alertmanager"

@@ -1,0 +1,75 @@
+# ============================================================
+# NGINX Ingress Controller Helm 配置
+#
+# 当前环境：
+#   MacBook M4
+#   Docker Desktop Kubernetes
+#
+# 目标：
+#   1. 使用 NodePort 暴露 NGINX
+#   2. HTTP 使用 30080
+#   3. HTTPS 使用 30443
+#   4. 后续通过 Ingress Path 转发 Grafana / Prometheus /
+#      Alertmanager / Jenkins 等服务
+# ============================================================
+
+controller:
+  # ==========================================================
+  # 1. Controller 副本数
+  # 本地 Docker Desktop 环境使用 1 个即可。
+  # ==========================================================
+  replicaCount: 1
+
+  # ==========================================================
+  # 2. Service
+  # 使用 NodePort，让 MacBook 可以直接通过 localhost 访问。
+  # ==========================================================
+  service:
+    type: NodePort
+
+    nodePorts:
+      http: 30080
+      https: 30443
+
+  # ==========================================================
+  # 3. IngressClass
+  # 将 nginx 设置为默认 IngressClass。
+  # ==========================================================
+  ingressClassResource:
+    name: nginx
+    enabled: true
+    default: true
+    controllerValue: k8s.io/ingress-nginx
+
+  ingressClass: nginx
+
+  # ==========================================================
+  # 4. Controller 资源
+  # ==========================================================
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # ==========================================================
+  # 5. Metrics
+  # 后续由 Prometheus 采集 NGINX Ingress 指标。
+  # ==========================================================
+  metrics:
+    enabled: true
+
+  # ==========================================================
+  # 6. Admission Webhook
+  # 用于校验 Ingress 配置。
+  # ==========================================================
+  admissionWebhooks:
+    enabled: true
+
+  # ==========================================================
+  # 7. 不监听没有 IngressClass 的 Ingress
+  # 防止多个 Ingress Controller 时发生冲突。
+  # ==========================================================
+  watchIngressWithoutClass: false

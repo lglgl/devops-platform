@@ -1,0 +1,25 @@
+# Secrets and environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials
+secrets/
+kubeconfig
+.kube/
+
+# Local environment
+.DS_Store
+.idea/
+.vscode/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Logs and generated files
+*.log
+coverage/
+dist/
+build/

@@ -1,0 +1,158 @@
+# ============================================================
+# MacBook Node Exporter
+#
+# 目标：
+#
+#   MacBook macOS
+#       |
+#       | node_exporter :9100
+#       |
+#       v
+#   Docker Desktop
+#       |
+#       v
+#   Kubernetes
+#       |
+#       v
+#   Prometheus
+#
+# 当前 Docker Desktop 已验证：
+#
+#   192.168.65.254:9100
+#
+# 可以从 Kubernetes Pod 正常访问。
+# ============================================================
+
+
+# ============================================================
+# 1. 创建 Service
+#
+# 这个 Service 没有 selector。
+#
+# 原因：
+#
+# Node Exporter 不运行在 Kubernetes Pod 中，
+# 而是运行在 MacBook macOS 上。
+#
+# 因此不能使用：
+#
+#   selector:
+#     app: node-exporter
+#
+# 而是通过 Endpoints 手动指定后端。
+# ============================================================
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: macos-node-exporter
+  namespace: observability
+
+  labels:
+    app: macos-node-exporter
+
+spec:
+
+  ports:
+
+    # --------------------------------------------------------
+    # Node Exporter Metrics
+    # --------------------------------------------------------
+
+    - name: metrics
+      port: 9100
+      targetPort: 9100
+      protocol: TCP
+
+
+---
+# ============================================================
+# 2. 手动配置 Endpoint
+#
+# MacBook Node Exporter 位于 Docker Desktop Host。
+#
+# 已经通过 netshoot 验证：
+#
+#   192.168.65.254:9100
+#
+# 可以正常返回 Metrics。
+# ============================================================
+
+apiVersion: v1
+kind: Endpoints
+
+metadata:
+  name: macos-node-exporter
+  namespace: observability
+
+subsets:
+
+  - addresses:
+
+      # ------------------------------------------------------
+      # Docker Desktop Host Gateway
+      # ------------------------------------------------------
+
+      - ip: 192.168.65.254
+
+    ports:
+
+      # ------------------------------------------------------
+      # Node Exporter
+      # ------------------------------------------------------
+
+      - name: metrics
+        port: 9100
+        protocol: TCP
+
+
+---
+# ============================================================
+# 3. ServiceMonitor
+#
+# Prometheus Operator 通过 ServiceMonitor 自动发现
+# MacBook Node Exporter。
+# ============================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+
+metadata:
+  name: macos-node-exporter
+  namespace: observability
+
+  labels:
+
+    # --------------------------------------------------------
+    # kube-prometheus-stack 默认会根据 release Label
+    # 发现对应的 ServiceMonitor。
+    # --------------------------------------------------------
+
+    release: kube-prometheus-stack
+
+spec:
+
+  # ==========================================================
+  # 选择上面的 Service
+  # ==========================================================
+
+  selector:
+
+    matchLabels:
+      app: macos-node-exporter
+
+
+  # ==========================================================
+  # ServiceMonitor 抓取配置
+  # ==========================================================
+
+  endpoints:
+
+    - port: metrics
+
+      # Node Exporter 标准 Metrics Endpoint
+      path: /metrics
+
+      # 每 15 秒抓取一次
+      interval: 15s

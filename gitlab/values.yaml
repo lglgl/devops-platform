@@ -1,0 +1,129 @@
+# =============================================================================
+# GitLab 官方 Helm chart (gitlab/gitlab) — 完整自托管 GitLab CE
+# 目标环境: Docker Desktop Kubernetes (MacBook Pro M4, 单节点, NodePort 30080)
+#
+# ⚠️ 重要声明 / 使用须知:
+#   1. 本文件是「面向 docker-desktop 的精简调优起点」，不是权威默认值。
+#      chart 的 value 结构随版本变化，安装前务必核对当前版本的真实默认值:
+#        helm repo add gitlab https://charts.gitlab.io
+#        helm repo update gitlab
+#        helm show values gitlab/gitlab > values-full.yaml   # 查看完整/权威字段
+#   2. 已关闭 chart 自带的 nginx-ingress / certmanager / prometheus / grafana，
+#      复用本平台的 ingress-nginx 与 kube-prometheus-stack。
+#   3. 仅启用 HTTP（关闭 TLS），适合本地 Lab；生产务必开启 TLS + cert-manager。
+#   4. 资源 requests 已尽量压低，但 GitLab 本质较重；请先上调 Docker Desktop
+#      内存分配到 ≥ 8GB（建议 12GB+），否则极易 OOM / Pending。
+# =============================================================================
+
+global:
+  # ---- 主机路由 (GitLab chart 使用 host 路由，非 path 路由) ----
+  # 安装后需在宿主机 /etc/hosts 添加:
+  #   127.0.0.1 gitlab.gitlab.local registry.gitlab.local minio.gitlab.local
+  # 然后访问: http://gitlab.gitlab.local:30080
+  hosts:
+    domain: gitlab.local
+    https: false
+  ingress:
+    class: nginx            # 复用本平台 ingress-nginx (IngressClass: nginx)
+    provider: nginx
+    configureCertmanager: false
+    tls:
+      enabled: false
+  # 复用平台内已有的对象存储/数据库？此处保持 chart 自带（简单、隔离）。
+  # 若要复用 infra 的 registry 或外部 PG/Redis，可在此覆盖 psql/redis/minio。
+
+# ---- 关闭 chart 自带、本平台已提供的组件 ----
+nginx-ingress:
+  enabled: false
+certmanager:
+  enabled: false
+prometheus:
+  enabled: false
+grafana:
+  enabled: false
+
+# ---- 自带依赖（精简资源，PVC 持久化） ----
+postgresql:
+  install: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  persistence:
+    enabled: true
+    size: 8Gi
+
+redis:
+  install: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  persistence:
+    enabled: true
+    size: 4Gi
+
+minio:                      # GitLab 的对象存储（artifacts / uploads / registry blobs）
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  persistence:
+    enabled: true
+    size: 10Gi
+
+# ---- GitLab 核心 ----
+gitlab:
+  webservice:               # Rails / API / UI
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+  sidekiq:                  # 后台作业
+    resources:
+      requests:
+        cpu: 250m
+        memory: 768Mi
+      limits:
+        memory: 1.5Gi
+  gitaly:                   # Git 仓库存储
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+    persistence:
+      enabled: true
+      size: 20Gi
+  kas:
+    enabled: false          # GitLab Agent Server (Kubernetes Agent)，本地 Lab 先关
+  gitlab-exporter:
+    enabled: true
+
+# ---- GitLab Runner (CI/CD 执行器) ----
+# 默认关闭：避免自动注册失败导致半成品。GitLab 起来后按 README 手动添加 runner，
+# 可选 (a) 开启下方 bundled runner，或 (b) 单独部署 gitlab-runner chart。
+gitlab-runner:
+  enabled: false
+  # 开启后需填注册 token（GitLab UI: Admin → CI/CD → Runners 创建），例如:
+  # runners:
+  #   registrationToken: "<从 GitLab 获取的 token>"
+  #   config: |
+  #     [[runners]]
+  #       [runners.kubernetes]
+  #         namespace = "gitlab"
+  #         image = "ubuntu:22.04"
+  # resources:
+  #   requests:
+  #     cpu: 100m
+  #     memory: 128Mi
